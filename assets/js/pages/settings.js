@@ -1,236 +1,931 @@
+// settings.js
+
 import { state } from '../utils/state.js';
 import { toast } from '../components/toast.js';
 import { orgStore } from '../utils/orgStore.js';
+import { api } from '../api.js';
 
 export function renderSettings(rerender) {
-  const user = state.get('currentUser');
+  const user = state.get('currentUser') || {};
   const dark = state.get('darkMode');
+
   let session = null;
-  try { session = JSON.parse(localStorage.getItem('tf_session_v1') || 'null'); } catch { }
-  const role = session?.role || 'unknown';
-  const org = session?.orgId ? orgStore.getOrg(session.orgId) : null;
+
+  try {
+    session = JSON.parse(localStorage.getItem('tf_session_v1') || 'null');
+  } catch {
+    session = null;
+  }
+
+  const role = session?.role || 'employee';
+  const org = session?.orgId
+    ? orgStore.getOrg(session.orgId)
+    : null;
+
+  const initials = (() => {
+    const name = user?.name || 'User';
+
+    const parts = name.trim().split(' ');
+
+    return (
+      (parts[0]?.[0] || '') +
+      (parts[1]?.[0] || '')
+    ).toUpperCase();
+  })();
 
   const html = `
-  <div class="p-6 max-w-2xl space-y-6 animate-fadein">
-    <div>
-      <h2 class="text-lg font-bold text-zinc-900 dark:text-white tracking-tight">Settings</h2>
-      <p class="text-sm text-zinc-400 mt-0.5">Manage your preferences and account.</p>
+  <style>
+    .settings-page *{
+      box-sizing:border-box;
+    }
+
+    .settings-page{
+      max-width:680px;
+      margin:0 auto;
+      padding:2rem 1.25rem 4rem;
+      animation:fadeIn .25s ease;
+    }
+
+    .settings-header{
+      margin-bottom:2rem;
+    }
+
+    .settings-header h1{
+      font-size:22px;
+      font-weight:600;
+      letter-spacing:-0.3px;
+      color:rgb(24 24 27);
+    }
+
+    .dark .settings-header h1{
+      color:white;
+    }
+
+    .settings-header p{
+      font-size:13px;
+      color:rgb(161 161 170);
+      margin-top:4px;
+    }
+
+    .settings-section{
+      background:white;
+      border:1px solid rgb(228 228 231);
+      border-radius:16px;
+      overflow:hidden;
+      margin-bottom:1rem;
+    }
+
+    .dark .settings-section{
+      background:rgb(24 24 27);
+      border-color:rgb(39 39 42);
+    }
+
+    .settings-section-header{
+      padding:14px 20px;
+      border-bottom:1px solid rgb(228 228 231);
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+
+    .dark .settings-section-header{
+      border-color:rgb(39 39 42);
+    }
+
+    .settings-section-header i{
+      font-size:15px;
+      color:rgb(161 161 170);
+    }
+
+    .settings-section-header span{
+      font-size:12px;
+      font-weight:600;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      color:rgb(113 113 122);
+    }
+
+    .settings-section-body{
+      padding:20px;
+    }
+
+    .profile-row{
+      display:flex;
+      align-items:center;
+      gap:16px;
+      margin-bottom:20px;
+    }
+
+    .avatar{
+      width:52px;
+      height:52px;
+      border-radius:14px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:white;
+      font-size:16px;
+      font-weight:700;
+      flex-shrink:0;
+    }
+
+    .profile-name{
+      font-size:15px;
+      font-weight:600;
+      color:rgb(24 24 27);
+    }
+
+    .dark .profile-name{
+      color:white;
+    }
+
+    .profile-role{
+      font-size:12px;
+      color:rgb(161 161 170);
+      margin-top:2px;
+    }
+
+    .status-dot{
+      width:7px;
+      height:7px;
+      border-radius:999px;
+      background:#84cc16;
+      display:inline-block;
+      margin-right:5px;
+    }
+
+    .field-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+    }
+
+    .add-user-grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    @media(max-width:640px){
+      .field-grid,
+      .add-user-grid{
+        grid-template-columns:1fr;
+      }
+    }
+
+    .field label{
+      display:block;
+      font-size:11px;
+      font-weight:600;
+      margin-bottom:6px;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      color:rgb(113 113 122);
+    }
+
+    .field input{
+      width:100%;
+      height:40px;
+      padding:0 12px;
+      border-radius:10px;
+      border:1px solid rgb(228 228 231);
+      background:rgb(244 244 245);
+      font-size:13px;
+      color:rgb(24 24 27);
+      outline:none;
+      transition:.15s ease;
+    }
+
+    .dark .field input{
+      background:rgb(39 39 42);
+      border-color:rgb(63 63 70);
+      color:white;
+    }
+
+    .field input:focus{
+      border-color:rgb(113 113 122);
+      box-shadow:0 0 0 3px rgba(0,0,0,.05);
+    }
+
+    .org-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    .org-name{
+      font-size:14px;
+      font-weight:600;
+      color:rgb(24 24 27);
+    }
+
+    .dark .org-name{
+      color:white;
+    }
+
+    .org-role{
+      font-size:12px;
+      color:rgb(161 161 170);
+      margin-top:2px;
+    }
+
+    .badge{
+      padding:3px 9px;
+      border-radius:999px;
+      font-size:11px;
+      font-weight:600;
+    }
+
+    .badge-owner{
+      background:#ecfccb;
+      color:#3f6212;
+    }
+
+    .badge-employee{
+      background:rgb(244 244 245);
+      color:rgb(82 82 91);
+    }
+
+    .toggle-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      padding:15px 20px;
+      border-bottom:1px solid rgb(228 228 231);
+    }
+
+    .dark .toggle-row{
+      border-color:rgb(39 39 42);
+    }
+
+    .toggle-row:last-child{
+      border-bottom:none;
+    }
+
+    .toggle-label{
+      font-size:14px;
+      font-weight:500;
+      color:rgb(24 24 27);
+    }
+
+    .dark .toggle-label{
+      color:white;
+    }
+
+    .toggle-sub{
+      font-size:12px;
+      color:rgb(161 161 170);
+      margin-top:2px;
+    }
+
+    .toggle{
+      position:relative;
+      width:42px;
+      height:24px;
+      cursor:pointer;
+      flex-shrink:0;
+    }
+
+    .toggle input{
+      opacity:0;
+      width:0;
+      height:0;
+      position:absolute;
+    }
+
+    .toggle-track{
+      position:absolute;
+      inset:0;
+      border-radius:999px;
+      background:rgb(212 212 216);
+      transition:.2s ease;
+    }
+
+    .dark .toggle-track{
+      background:rgb(63 63 70);
+    }
+
+    .toggle input:checked ~ .toggle-track{
+      background:rgb(24 24 27);
+    }
+
+    .dark .toggle input:checked ~ .toggle-track{
+      background:white;
+    }
+
+    .toggle-thumb{
+      position:absolute;
+      width:18px;
+      height:18px;
+      top:3px;
+      left:3px;
+      border-radius:999px;
+      background:white;
+      transition:.2s ease;
+    }
+
+    .dark .toggle-thumb{
+      background:rgb(24 24 27);
+    }
+
+    .toggle input:checked ~ .toggle-thumb{
+      transform:translateX(18px);
+    }
+
+    .btn{
+      height:36px;
+      padding:0 14px;
+      border:none;
+      border-radius:10px;
+      font-size:13px;
+      font-weight:500;
+      cursor:pointer;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      gap:6px;
+      transition:.15s ease;
+    }
+
+    .btn:active{
+      transform:scale(.97);
+    }
+
+    .btn-primary{
+      background:rgb(24 24 27);
+      color:white;
+    }
+
+    .dark .btn-primary{
+      background:white;
+      color:black;
+    }
+
+    .btn-primary:hover{
+      opacity:.9;
+    }
+
+    .btn-ghost{
+      background:transparent;
+      border:1px solid rgb(212 212 216);
+      color:rgb(82 82 91);
+    }
+
+    .dark .btn-ghost{
+      border-color:rgb(63 63 70);
+      color:rgb(212 212 216);
+    }
+
+    .btn-danger{
+      background:transparent;
+      border:1px solid rgba(239,68,68,.25);
+      color:#ef4444;
+    }
+
+    .btn-danger:hover{
+      background:rgba(239,68,68,.08);
+    }
+
+    .danger-section{
+      border-color:rgba(239,68,68,.2);
+    }
+
+    .danger-header{
+      border-color:rgba(239,68,68,.15);
+    }
+
+    .danger-row{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      padding:18px 20px;
+    }
+
+    .danger-title{
+      font-size:14px;
+      font-weight:600;
+      color:rgb(24 24 27);
+    }
+
+    .dark .danger-title{
+      color:white;
+    }
+
+    .danger-sub{
+      font-size:12px;
+      color:rgb(161 161 170);
+      margin-top:2px;
+    }
+
+    .save-row{
+      display:flex;
+      justify-content:flex-end;
+      gap:10px;
+      margin-top:1.5rem;
+    }
+
+    @keyframes fadeIn{
+      from{
+        opacity:0;
+        transform:translateY(6px);
+      }
+      to{
+        opacity:1;
+        transform:translateY(0);
+      }
+    }
+  </style>
+
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+
+  <div class="settings-page">
+
+    <div class="settings-header">
+      <h1>Settings</h1>
+      <p>Manage your account, preferences and organization.</p>
     </div>
 
-    <!-- Organization -->
-    <div class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/60 rounded-2xl overflow-hidden">
-      <div class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
-        <h3 class="text-sm font-semibold text-zinc-900 dark:text-white">Organization</h3>
+    <!-- PROFILE -->
+    <div class="settings-section">
+      <div class="settings-section-header">
+        <i class="ti ti-user"></i>
+        <span>Profile</span>
       </div>
-      <div class="px-5 py-5 space-y-3">
-        <div class="flex items-center justify-between gap-3">
-          <div>
-            <p class="text-sm font-medium text-zinc-900 dark:text-white">${org?.name || 'Not set'}</p>
-            <p class="text-xs text-zinc-400">Role: <span class="font-medium text-zinc-500 dark:text-zinc-300">${role}</span></p>
+
+      <div class="settings-section-body">
+
+        <div class="profile-row">
+          <div 
+            class="avatar"
+            id="avatar-preview"
+            style="background:${user?.color || '#534AB7'}"
+          >
+            ${initials}
           </div>
-        </div>
-        ${role === 'owner' ? `
-          <div class="pt-2 border-t border-zinc-100 dark:border-zinc-800/60">
-            <div class="flex items-center justify-between gap-3">
-              <div>
-                <p class="text-sm font-medium text-zinc-900 dark:text-white">Invite employees</p>
-                <p class="text-xs text-zinc-400">Generate a unique lowercase key for an employee to join.</p>
-              </div>
-              <button id="gen-invite-btn" class="px-4 py-2 text-xs font-medium rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 active:scale-95 transition-all">Generate key</button>
+
+          <div>
+            <div class="profile-name" id="profile-name-display">
+              ${user?.name || 'User'}
             </div>
-            <div class="mt-4">
-              <p class="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-2 block">Recent keys</p>
-              <div id="invite-list" class="space-y-2">
-                ${(org?.id ? orgStore.listOrgInvites(org.id).slice(0, 5) : []).map(inv => `
-                  <div class="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-zinc-50 dark:bg-zinc-800/40 border border-zinc-100 dark:border-zinc-800/60">
-                    <div class="min-w-0">
-                      <p class="text-sm font-mono text-zinc-900 dark:text-white truncate">${inv.key}</p>
-                      <p class="text-[11px] text-zinc-400">${inv.usedBySub ? 'Used' : 'Unused'} • ${new Date(inv.createdAt).toLocaleString()}</p>
-                    </div>
-                    <button data-copy-key="${inv.key}" class="px-3 py-1.5 text-xs font-medium rounded-lg border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-300 hover:bg-white dark:hover:bg-zinc-800 transition-all">Copy</button>
-                  </div>
-                `).join('') || `<p class="text-xs text-zinc-400">No keys generated yet.</p>`}
-              </div>
+
+            <div class="profile-role">
+              <span class="status-dot"></span>
+              ${role === 'owner' ? 'Administrator' : 'Employee'}
             </div>
           </div>
-        ` : `
-          <p class="text-xs text-zinc-400">Ask your owner/admin if you need a new employee key.</p>
-        `}
+        </div>
+
+        <div class="field-grid">
+
+          <div class="field">
+            <label>Display name</label>
+
+            <input
+              type="text"
+              id="profile-name"
+              value="${user?.name || ''}"
+              placeholder="Your name"
+            >
+          </div>
+
+          <div class="field">
+            <label>Email address</label>
+
+            <input
+              type="email"
+              id="profile-email"
+              value="${user?.email || ''}"
+              placeholder="you@company.com"
+            >
+          </div>
+
+        </div>
+
       </div>
     </div>
 
-    <!-- Profile -->
-    <div class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/60 rounded-2xl overflow-hidden">
-      <div class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
-        <h3 class="text-sm font-semibold text-zinc-900 dark:text-white">Profile</h3>
+    <!-- ORGANIZATION -->
+    <div class="settings-section">
+      <div class="settings-section-header">
+        <i class="ti ti-building"></i>
+        <span>Organization</span>
       </div>
-      <div class="px-5 py-5 space-y-4">
-        <div class="flex items-center gap-4">
-          <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-lg font-bold text-white" style="background:${user.color}">${user.initials}</div>
+
+      <div class="settings-section-body">
+
+        <div class="org-row">
+
           <div>
-            <p class="text-sm font-semibold text-zinc-900 dark:text-white">${user.name}</p>
-            <p class="text-xs text-zinc-400">Administrator</p>
+            <div class="org-name">
+              ${org?.name || 'No organization'}
+            </div>
+
+            <div class="org-role">
+              Workspace member
+            </div>
           </div>
+
+          <span class="badge ${role === 'owner'
+      ? 'badge-owner'
+      : 'badge-employee'}">
+
+            ${role === 'owner'
+      ? 'Owner'
+      : 'Employee'}
+
+          </span>
+
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Display Name</label>
-            <input type="text" value="${user.name}" class="w-full px-4 py-2.5 text-sm bg-zinc-100 dark:bg-zinc-800 rounded-xl text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-white/10 transition-all">
-          </div>
-          <div>
-            <label class="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Email</label>
-            <input type="email" value="${user.email || ''}" class="w-full px-4 py-2.5 text-sm bg-zinc-100 dark:bg-zinc-800 rounded-xl text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-white/10 transition-all">
-          </div>
-        </div>
+
       </div>
     </div>
 
-    <!-- Preferences -->
-    <div class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/60 rounded-2xl overflow-hidden">
-      <div class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
-        <h3 class="text-sm font-semibold text-zinc-900 dark:text-white">Preferences</h3>
+    <!-- ADD EMPLOYEE -->
+    ${role === 'owner' ? `
+      <div class="settings-section">
+
+        <div class="settings-section-header">
+          <i class="ti ti-user-plus"></i>
+          <span>Invite employee</span>
+        </div>
+
+        <div class="settings-section-body">
+
+          <div class="add-user-grid">
+
+            <div class="field">
+              <label>Full name</label>
+
+              <input
+                type="text"
+                id="add-user-name"
+                placeholder="Jordan Lee"
+              >
+            </div>
+
+            <div class="field">
+              <label>Work email</label>
+
+              <input
+                type="email"
+                id="add-user-email"
+                placeholder="jordan@company.io"
+              >
+            </div>
+
+          </div>
+
+          <div style="display:flex;justify-content:flex-end">
+            <button class="btn btn-primary" id="add-user-btn">
+              <i class="ti ti-send"></i>
+              Send invite
+            </button>
+          </div>
+
+        </div>
+
       </div>
-      <div class="divide-y divide-zinc-50 dark:divide-zinc-800">
-        <div class="flex items-center justify-between px-5 py-4">
-          <div>
-            <p class="text-sm font-medium text-zinc-900 dark:text-white">Dark mode</p>
-            <p class="text-xs text-zinc-400">Switch between light and dark themes</p>
-          </div>
-          <button id="settings-dark-toggle" class="relative w-11 h-6 rounded-full transition-colors duration-200 ${dark ? 'bg-zinc-900 dark:bg-white' : 'bg-zinc-200 dark:bg-zinc-700'}">
-            <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white dark:bg-zinc-900 rounded-full shadow transition-transform duration-200 ${dark ? 'translate-x-5' : ''}"></span>
-          </button>
-        </div>
-        <div class="flex items-center justify-between px-5 py-4">
-          <div>
-            <p class="text-sm font-medium text-zinc-900 dark:text-white">Email notifications</p>
-            <p class="text-xs text-zinc-400">Receive task updates via email</p>
-          </div>
-          <button class="relative w-11 h-6 rounded-full bg-zinc-900 dark:bg-white transition-colors">
-            <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white dark:bg-zinc-900 rounded-full shadow translate-x-5 transition-transform duration-200"></span>
-          </button>
-        </div>
-        <div class="flex items-center justify-between px-5 py-4">
-          <div>
-            <p class="text-sm font-medium text-zinc-900 dark:text-white">Desktop notifications</p>
-            <p class="text-xs text-zinc-400">Push notifications in your browser</p>
-          </div>
-          <button class="relative w-11 h-6 rounded-full bg-zinc-200 dark:bg-zinc-700 transition-colors">
-            <span class="absolute top-0.5 left-0.5 w-5 h-5 bg-white dark:bg-zinc-900 rounded-full shadow transition-transform duration-200"></span>
-          </button>
-        </div>
+    ` : ''}
+
+    <!-- PREFERENCES -->
+    <div class="settings-section">
+
+      <div class="settings-section-header">
+        <i class="ti ti-adjustments-horizontal"></i>
+        <span>Preferences</span>
       </div>
+
+      <div>
+
+        <div class="toggle-row">
+
+          <div>
+            <div class="toggle-label">Dark mode</div>
+            <div class="toggle-sub">
+              Switch between light and dark themes
+            </div>
+          </div>
+
+          <label class="toggle">
+            <input
+              type="checkbox"
+              id="dark-toggle"
+              ${dark ? 'checked' : ''}
+            >
+
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+
+        </div>
+
+        <div class="toggle-row">
+
+          <div>
+            <div class="toggle-label">Email notifications</div>
+            <div class="toggle-sub">
+              Receive task updates via email
+            </div>
+          </div>
+
+          <label class="toggle">
+            <input type="checkbox" checked>
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+
+        </div>
+
+        <div class="toggle-row">
+
+          <div>
+            <div class="toggle-label">Desktop notifications</div>
+            <div class="toggle-sub">
+              Push notifications in browser
+            </div>
+          </div>
+
+          <label class="toggle">
+            <input type="checkbox">
+            <div class="toggle-track"></div>
+            <div class="toggle-thumb"></div>
+          </label>
+
+        </div>
+
+      </div>
+
     </div>
 
-    <!-- Add User -->
-    <div class="bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800/60 rounded-2xl overflow-hidden">
-      <div class="px-5 py-4 border-b border-zinc-100 dark:border-zinc-800">
-        <h3 class="text-sm font-semibold text-zinc-900 dark:text-white">Add User</h3>
-      </div>
-      <div class="px-5 py-5 space-y-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Name</label>
-            <input type="text" id="add-user-name" placeholder="Full Name" class="w-full px-4 py-2.5 text-sm bg-zinc-100 dark:bg-zinc-800 rounded-xl text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-white/10 transition-all">
-          </div>
-          <div>
-            <label class="text-xs font-medium text-zinc-500 uppercase tracking-wider mb-1.5 block">Email</label>
-            <input type="email" id="add-user-email" placeholder="email@company.io" class="w-full px-4 py-2.5 text-sm bg-zinc-100 dark:bg-zinc-800 rounded-xl text-zinc-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-zinc-900/10 dark:focus:ring-white/10 transition-all">
-          </div>
-        </div>
-        <div class="flex justify-end">
-          <button id="add-user-btn" class="px-4 py-2 text-xs font-medium rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:opacity-90 active:scale-95 transition-all">Add User</button>
-        </div>
-      </div>
-    </div>
+    <!-- DANGER -->
+    <div class="settings-section danger-section">
 
-    <!-- Danger zone -->
-    <div class="bg-white dark:bg-zinc-900 border border-red-100 dark:border-red-900/30 rounded-2xl overflow-hidden">
-      <div class="px-5 py-4 border-b border-red-100 dark:border-red-900/30">
-        <h3 class="text-sm font-semibold text-red-600 dark:text-red-400">Danger Zone</h3>
+      <div class="settings-section-header danger-header">
+        <i class="ti ti-alert-triangle"></i>
+        <span>Danger zone</span>
       </div>
-      <div class="px-5 py-4 flex items-center justify-between">
+
+      <div class="danger-row">
+
         <div>
-          <p class="text-sm font-medium text-zinc-900 dark:text-white">Clear all data</p>
-          <p class="text-xs text-zinc-400">Permanently delete all tasks and reset the app</p>
+          <div class="danger-title">
+            Clear all data
+          </div>
+
+          <div class="danger-sub">
+            Permanently delete all tasks and notes.
+          </div>
         </div>
-        <button id="clear-data-btn" class="px-4 py-2 text-xs font-medium rounded-xl border border-red-200 dark:border-red-900/40 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-all">Clear data</button>
+
+        <button
+          class="btn btn-danger"
+          id="clear-data-btn"
+        >
+          <i class="ti ti-trash"></i>
+          Clear data
+        </button>
+
       </div>
+
     </div>
 
-    <!-- Save -->
-    <div class="flex justify-end">
-      <button id="save-settings-btn" class="px-5 py-2.5 text-sm font-medium bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 rounded-xl hover:opacity-90 active:scale-95 transition-all">Save changes</button>
+    <!-- SAVE -->
+    <div class="save-row">
+
+      <button
+        class="btn btn-ghost"
+        id="discard-btn"
+      >
+        Discard
+      </button>
+
+      <button
+        class="btn btn-primary"
+        id="save-btn"
+      >
+        <i class="ti ti-check"></i>
+        Save changes
+      </button>
+
     </div>
-  </div>`;
+
+  </div>
+  `;
 
   return {
-    html, init() {
-      document.getElementById('settings-dark-toggle')?.addEventListener('click', () => {
-        const dark = !state.get('darkMode');
-        state.set('darkMode', dark);
-        document.documentElement.classList.toggle('dark', dark);
-        rerender('settings');
+    html,
+
+    init() {
+
+      // DARK MODE
+
+      const darkToggle = document.getElementById('dark-toggle');
+
+      darkToggle?.addEventListener('change', () => {
+        const enabled = darkToggle.checked;
+
+        state.set('darkMode', enabled);
+
+        document.documentElement.classList.toggle(
+          'dark',
+          enabled
+        );
+
+        localStorage.setItem(
+          'tf_dark',
+          enabled
+        );
+
+        toast(
+          enabled
+            ? 'Dark mode enabled'
+            : 'Light mode enabled',
+          'success'
+        );
       });
 
-      document.getElementById('save-settings-btn')?.addEventListener('click', () => {
-        toast('Settings saved', 'success');
+      // PROFILE PREVIEW
+
+      const profileInput =
+        document.getElementById('profile-name');
+
+      profileInput?.addEventListener('input', (e) => {
+
+        const value = e.target.value.trim();
+
+        document.getElementById(
+          'profile-name-display'
+        ).textContent = value || 'User';
+
+        const parts = value.split(' ');
+
+        const initials =
+          (
+            (parts[0]?.[0] || '') +
+            (parts[1]?.[0] || '')
+          ).toUpperCase();
+
+        document.getElementById(
+          'avatar-preview'
+        ).textContent = initials || 'U';
       });
 
-      document.getElementById('add-user-btn')?.addEventListener('click', () => {
-        const name = document.getElementById('add-user-name')?.value;
-        const email = document.getElementById('add-user-email')?.value?.trim()?.toLowerCase();
-        
-        let session = null;
-        try { session = JSON.parse(localStorage.getItem('tf_session_v1') || 'null'); } catch { }
-        const orgId = session?.orgId;
+      // SAVE
 
-        if (name && email && orgId) {
-          // Check if already an employee
-          const users = state.get('users') || [];
-          if (users.some(u => u.email?.toLowerCase() === email)) {
-            return toast('User is already a member of this organization', 'error');
-          }
+      document
+        .getElementById('save-btn')
+        ?.addEventListener('click', () => {
 
-          const res = orgStore.preRegisterEmployee({ email, orgId });
-          if (res.ok) {
-            toast(`User ${name} pre-registered. They will be added to the org on their next login.`, 'success');
-            document.getElementById('add-user-name').value = '';
-            document.getElementById('add-user-email').value = '';
-          } else {
-            toast(res.error, 'error');
-          }
-        } else {
-          toast('Please enter both name and email', 'error');
-        }
-      });
+          const btn =
+            document.getElementById('save-btn');
 
-      document.getElementById('gen-invite-btn')?.addEventListener('click', () => {
-        let session = null;
-        try { session = JSON.parse(localStorage.getItem('tf_session_v1') || 'null'); } catch { }
-        if (!session?.orgId || session?.role !== 'owner' || !session?.profile?.sub) {
-          return toast('Only owners can generate keys', 'error');
-        }
-        const inv = orgStore.createInvite({ orgId: session.orgId, createdBySub: session.profile.sub });
-        navigator.clipboard?.writeText(inv.key).catch(() => { });
-        toast(`Employee key generated (copied): ${inv.key}`, 'success', 5000);
-        rerender('settings');
-      });
+          btn.disabled = true;
 
-      document.querySelectorAll('[data-copy-key]')?.forEach(btn => {
-        btn.addEventListener('click', () => {
-          const k = btn.dataset.copyKey;
-          navigator.clipboard?.writeText(k).catch(() => { });
-          toast('Copied', 'success');
+          btn.innerHTML =
+            '<i class="ti ti-loader-2"></i> Saving...';
+
+          setTimeout(() => {
+
+            btn.disabled = false;
+
+            btn.innerHTML =
+              '<i class="ti ti-check"></i> Save changes';
+
+            toast(
+              'Settings saved',
+              'success'
+            );
+
+          }, 700);
         });
-      });
 
-      document.getElementById('clear-data-btn')?.addEventListener('click', () => {
-        if (confirm('This will reset all tasks to the demo data. Continue?')) {
+      // DISCARD
+
+      document
+        .getElementById('discard-btn')
+        ?.addEventListener('click', () => {
+
+          rerender('settings');
+
+          toast(
+            'Changes discarded',
+            'warning'
+          );
+        });
+
+      // ADD USER
+
+      document
+        .getElementById('add-user-btn')
+        ?.addEventListener('click', async () => {
+
+          const nameInput =
+            document.getElementById('add-user-name');
+
+          const emailInput =
+            document.getElementById('add-user-email');
+
+          const name =
+            nameInput?.value?.trim();
+
+          const email =
+            emailInput?.value
+              ?.trim()
+              ?.toLowerCase();
+
+          if (!name || !email) {
+            return toast(
+              'Please enter name and email',
+              'error'
+            );
+          }
+
+          const btn =
+            document.getElementById('add-user-btn');
+
+          btn.disabled = true;
+
+          btn.innerHTML =
+            '<i class="ti ti-loader-2"></i> Sending...';
+
+          try {
+
+            // CREATE INVITE
+            const response = await fetch(
+              'https://task.kehem.com/api/v1/invites/',
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: `Bearer ${localStorage.getItem('tf_access_token')
+                    }`
+                },
+                body: JSON.stringify({
+                  email,name
+                })
+              }
+            );
+
+            const data = await response.json();
+
+            if (!response.ok) {
+              throw new Error(
+                data.detail || 'Failed to send invite'
+              );
+            }
+
+            toast(
+              `${email} invited successfully`,
+              'success'
+            );
+
+            nameInput.value = '';
+            emailInput.value = '';
+
+            console.log('Invite created:', data);
+
+          } catch (err) {
+
+            console.error(err);
+
+            toast(
+              err.message || 'Server error',
+              'error'
+            );
+
+          } finally {
+
+            btn.disabled = false;
+
+            btn.innerHTML =
+              '<i class="ti ti-send"></i> Send invite';
+          }
+        });
+
+      // CLEAR DATA
+
+      document
+        .getElementById('clear-data-btn')
+        ?.addEventListener('click', () => {
+
+          const ok = confirm(
+            'Delete all tasks and notes?'
+          );
+
+          if (!ok) return;
+
           localStorage.removeItem('tf_tasks');
           localStorage.removeItem('tf_notes');
-          toast('Data cleared — refresh the page to reset', 'warning', 5000);
-        }
-      });
+
+          toast(
+            'All data cleared',
+            'warning'
+          );
+        });
     }
   };
 }

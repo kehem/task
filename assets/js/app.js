@@ -167,6 +167,14 @@ function renderCurrentPage() {
         result.init?.();
       }
     });
+  } else if ( page === 'employee') {
+    import ('./pages/employee.js').them (module => {
+      result = module.renderReportsPage((p) => p ? navigate(p) : renderCurrentPage());
+      if (result) {
+        container.innerHTML = result.html;
+        result.init?.();
+      }
+    });
   }
 
   if (result) {
