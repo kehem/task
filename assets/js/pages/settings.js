@@ -521,7 +521,7 @@ export function renderSettings(rerender) {
 
           <div>
             <div class="org-name">
-              ${org?.name || 'No organization'}
+              ${org?.orgId || 'No organization'}
             </div>
 
             <div class="org-role">
