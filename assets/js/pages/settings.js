@@ -18,9 +18,7 @@ export function renderSettings(rerender) {
   }
 
   const role = session?.role || 'employee';
-  const org = session?.orgId
-    ? orgStore.getOrg(session.orgId)
-    : null;
+  
 
   const initials = (() => {
     const name = user?.name || 'User';
@@ -521,7 +519,7 @@ export function renderSettings(rerender) {
 
           <div>
             <div class="org-name">
-              ${org?.orgId || 'No organization'}
+              ${session?.orgId || 'No organization'}
             </div>
 
             <div class="org-role">
