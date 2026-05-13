@@ -409,14 +409,12 @@ export function renderEmployees() {
 
           const response =
             await fetch(
-              '/api/v1/employees/',
+              'https://task.kehem.com/api/v1/auth/employees/',
               {
                 headers: {
                   Authorization:
                     `Bearer ${
-                      localStorage.getItem(
-                        'access_token'
-                      )
+                      localStorage.getItem('tf_access_token')
                     }`
                 }
               }

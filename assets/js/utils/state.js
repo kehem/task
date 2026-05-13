@@ -2,16 +2,27 @@
 import { STATUS, PRIORITY } from './constants.js';
 import { api } from '../api.js';
 
-function getInitials(name) {
-  return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+function getInitials(name = '') {
+  return name
+    .split(' ')
+    .map(n => n[0])
+    .join('')
+    .toUpperCase()
+    .slice(0, 2);
 }
 
-function stringToColor(str) {
+
+function stringToColor(str = '') {
   let hash = 0;
+
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash);
   }
-  const c = (hash & 0x00FFFFFF).toString(16).toUpperCase();
+
+  const c = (hash & 0x00FFFFFF)
+    .toString(16)
+    .toUpperCase();
+
   return '#' + '00000'.substring(0, 6 - c.length) + c;
 }
 
@@ -140,177 +151,740 @@ const NOTES_SEED = {
 const listeners = [];
 
 export const state = {
+
   _data: {
     tasks: [],
     notes: {},
     users: [],
     currentUser: null,
+
     onboarded: false,
     orgId: null,
     role: null,
+
     currentPage: 'dashboard',
+
     sidebarOpen: window.innerWidth >= 1024,
-    darkMode: localStorage.getItem('tf_dark') === 'true',
+
+    darkMode:
+      localStorage.getItem('tf_dark') === 'true',
+
+    // filters
     searchQuery: '',
     filterPriority: '',
     filterStatus: '',
     filterAssignee: null,
     filterDate: null,
+
     activeTaskId: null,
-    notifications: [
-      { id: 'notif1', text: 'Jordan Lee commented on "Redesign onboarding flow"', ts: '2026-05-08T09:00:00Z', read: false },
-      { id: 'notif2', text: 'Task "Migrate database" was verified', ts: '2026-04-24T18:00:00Z', read: false },
-      { id: 'notif3', text: 'New task assigned: API rate-limiting', ts: '2026-05-03T11:30:00Z', read: true },
-    ],
+
+    notifications: [],
   },
 
-  get(key) { return this._data[key]; },
+  // --------------------------------------------------
+  // Core
+  // --------------------------------------------------
+
+  get(key) {
+    return this._data[key];
+  },
 
   set(key, value) {
     this._data[key] = value;
+
     this._persist(key);
+
     listeners.forEach(fn => fn(key, value));
   },
 
-  subscribe(fn) { listeners.push(fn); },
-
-  _persist(key) {
-    if (key === 'tasks') localStorage.setItem('tf_tasks', JSON.stringify(this._data.tasks));
-    if (key === 'notes') localStorage.setItem('tf_notes', JSON.stringify(this._data.notes));
-    if (key === 'darkMode') localStorage.setItem('tf_dark', this._data.darkMode);
+  subscribe(fn) {
+    listeners.push(fn);
   },
 
+  _persist(key) {
+
+    if (key === 'tasks') {
+      localStorage.setItem(
+        'tf_tasks',
+        JSON.stringify(this._data.tasks)
+      );
+    }
+
+    if (key === 'notes') {
+      localStorage.setItem(
+        'tf_notes',
+        JSON.stringify(this._data.notes)
+      );
+    }
+
+    if (key === 'darkMode') {
+      localStorage.setItem(
+        'tf_dark',
+        this._data.darkMode
+      );
+    }
+  },
+
+  // --------------------------------------------------
   // Helpers
-  getUser(id) { return this._data.users.find(u => u.id == id); },
-  getTask(id) { return this._data.tasks.find(t => t.id == id); },
+  // --------------------------------------------------
+
+  getUser(id) {
+    return this._data.users.find(
+      u => String(u.id) === String(id)
+    );
+  },
+
+  getTask(id) {
+    return this._data.tasks.find(
+      t => String(t.id) === String(id)
+    );
+  },
+
+  // --------------------------------------------------
+  // Init
+  // --------------------------------------------------
 
   async init() {
-    // Fetch tasks
+
+    // Tasks
     try {
-      const taskData = await api.getTasks();
-      const tasks = Array.isArray(taskData) ? taskData : (taskData.tasks || taskData.results || []);
+
+      const taskData =
+        await api.getTasks();
+
+      const tasksRaw =
+        Array.isArray(taskData)
+          ? taskData
+          : (
+              taskData.tasks ||
+              taskData.results ||
+              []
+            );
+
+      const tasks = tasksRaw.map(task => ({
+
+        ...task,
+
+        notesCount:
+          task.notesCount ??
+          task.notes_count ??
+          0,
+
+        createdAt:
+          task.createdAt ||
+          task.created_at,
+
+        completedAt:
+          task.completedAt ||
+          task.completed_at,
+
+        verifiedAt:
+          task.verifiedAt ||
+          task.verified_at,
+      }));
+
       this.set('tasks', tasks);
+
     } catch (e) {
-      console.error('API Error: getTasks failed', e);
+
+      console.error(
+        'API Error: getTasks failed',
+        e
+      );
+
       this.set('tasks', []);
     }
 
-    // Fetch employees
+    // Users
     try {
-      const userData = await api.getEmployees();
-      const usersRaw = Array.isArray(userData) ? userData : (userData.users || userData.employees || []);
-      const users = usersRaw.map(u => ({
-        ...u,
-        initials: u.initials || getInitials(u.name || 'User'),
-        color: u.color || stringToColor(u.name || u.email || 'user')
-      }));
+
+      const userData =
+        await api.getEmployees();
+
+      const usersRaw =
+        Array.isArray(userData)
+          ? userData
+          : (
+              userData.users ||
+              userData.employees ||
+              userData.results ||
+              []
+            );
+
+      const users = usersRaw.map(user => {
+
+        const fullName =
+          `${user.first_name || ''} ${user.last_name || ''}`
+            .trim();
+
+        return {
+
+          ...user,
+
+          name:
+            user.name ||
+            fullName ||
+            user.email,
+
+          initials:
+            user.initials ||
+            getInitials(
+              fullName ||
+              user.email ||
+              'User'
+            ),
+
+          color:
+            user.color ||
+            stringToColor(
+              fullName ||
+              user.email ||
+              'user'
+            ),
+        };
+      });
+
       this.set('users', users);
+
     } catch (e) {
-      console.error('API Error: getEmployees failed', e);
+
+      console.error(
+        'API Error: getEmployees failed',
+        e
+      );
+
       this.set('users', []);
     }
   },
 
+  // --------------------------------------------------
+  // Task CRUD
+  // --------------------------------------------------
+
   addTask(task) {
-    const tasks = [...this._data.tasks, task];
+
+    const tasks = [
+      ...this._data.tasks,
+      task
+    ];
+
     this.set('tasks', tasks);
-    api.createTask(task).catch(e => console.error('API Error: createTask failed', e));
+
+    api.createTask(task)
+      .catch(e => {
+        console.error(
+          'API Error: createTask failed',
+          e
+        );
+      });
   },
 
   updateTask(id, patch) {
-    const tasks = this._data.tasks.map(t => t.id == id ? { ...t, ...patch } : t);
+
+    const tasks =
+      this._data.tasks.map(task => {
+
+        if (
+          String(task.id) !== String(id)
+        ) {
+          return task;
+        }
+
+        return {
+          ...task,
+          ...patch
+        };
+      });
+
     this.set('tasks', tasks);
 
-    let apiCall = api.updateTask(id, patch);
-    if (patch.status === STATUS.COMPLETED) {
+    let apiCall =
+      api.updateTask(id, patch);
+
+    if (
+      patch.status === STATUS.COMPLETED
+    ) {
       apiCall = api.completeTask(id);
-    } else if (patch.status === STATUS.ARCHIVED) {
+    }
+
+    else if (
+      patch.status === STATUS.ARCHIVED
+    ) {
       apiCall = api.archiveTask(id);
-    } else if (patch.verifiedAt) {
+    }
+
+    else if (patch.verifiedAt) {
       apiCall = api.verifyTask(id);
     }
 
-    apiCall.catch(e => console.error('API Error: updateTask failed', e));
+    apiCall.catch(e => {
+
+      console.error(
+        'API Error: updateTask failed',
+        e
+      );
+    });
   },
 
   deleteTask(id) {
-    const tasks = this._data.tasks.filter(t => t.id != id);
+
+    const tasks =
+      this._data.tasks.filter(
+        t => String(t.id) !== String(id)
+      );
+
     this.set('tasks', tasks);
-    api.deleteTask(id).catch(e => console.error('API Error: deleteTask failed', e));
+
+    api.deleteTask(id)
+      .catch(e => {
+
+        console.error(
+          'API Error: deleteTask failed',
+          e
+        );
+      });
   },
 
+  // --------------------------------------------------
+  // Notes
+  // --------------------------------------------------
+
   async fetchTaskNotes(taskId) {
+
     try {
-      const data = await api.getNotes(taskId);
-      const notesRaw = Array.isArray(data) ? data : (data.notes || data.results || []);
-      
-      // Normalize notes: ensure they have a 'message' field
-      const normalized = (notesRaw || []).map(n => ({
-        ...n,
-        message: n.message || n.text || ''
-      }));
-      const notes = { ...this._data.notes, [taskId]: normalized };
+
+      const data =
+        await api.getNotes(taskId);
+
+      const notesRaw =
+        Array.isArray(data)
+          ? data
+          : (
+              data.notes ||
+              data.results ||
+              []
+            );
+
+      const normalized =
+        notesRaw.map(note => ({
+          ...note,
+          message:
+            note.message ||
+            note.text ||
+            ''
+        }));
+
+      const notes = {
+        ...this._data.notes,
+        [taskId]: normalized
+      };
+
       this.set('notes', notes);
+
     } catch (e) {
-      console.error('API Error: getNotes failed', e);
+
+      console.error(
+        'API Error: getNotes failed',
+        e
+      );
     }
   },
 
   addNote(taskId, text) {
+
     const note = {
+
       id: 'n' + Date.now(),
-      userId: this._data.currentUser.id,
+
+      userId:
+        this._data.currentUser?.id,
+
       message: text,
+
       ts: new Date().toISOString(),
     };
-    const notes = { ...this._data.notes, [taskId]: [...(this._data.notes[taskId] || []), note] };
-    this.set('notes', notes);
-    // update notesCount
-    this.updateTask(taskId, { notesCount: (notes[taskId] || []).length });
 
-    api.addNote(taskId, { message:text, task: taskId }).catch(e => console.error('API Error: addNote failed', e));
+    const notes = {
+
+      ...this._data.notes,
+
+      [taskId]: [
+        ...(this._data.notes[taskId] || []),
+        note
+      ]
+    };
+
+    this.set('notes', notes);
+
+    this.updateTask(taskId, {
+      notesCount:
+        (notes[taskId] || []).length
+    });
+
+    api.addNote(taskId, {
+      message: text,
+      task: taskId
+    }).catch(e => {
+
+      console.error(
+        'API Error: addNote failed',
+        e
+      );
+    });
   },
 
-  getTaskNotes(taskId) { return this._data.notes[taskId] || []; },
+  getTaskNotes(taskId) {
+    return this._data.notes[taskId] || [];
+  },
 
-  filteredTasks(statusFilter) {
-    let tasks = this._data.tasks;
-    
-    // Page filter (active, completed, archived)
-    if (statusFilter) tasks = tasks.filter(t => t.status === statusFilter);
+  // --------------------------------------------------
+  // Smart Task Filtering + Sorting
+  // --------------------------------------------------
 
-    // Global search
-    const q = this._data.searchQuery.toLowerCase();
-    if (q) tasks = tasks.filter(t => t.title.toLowerCase().includes(q) || t.description.toLowerCase().includes(q));
+  filteredTasks(statusFilter = null) {
 
-    // Specific filters
-    if (this._data.filterPriority) tasks = tasks.filter(t => t.priority === this._data.filterPriority);
-    if (this._data.filterStatus) tasks = tasks.filter(t => t.status === this._data.filterStatus);
-    if (this._data.filterAssignee) tasks = tasks.filter(t => t.assignees.includes(Number(this._data.filterAssignee)) || t.assignees.includes(String(this._data.filterAssignee)));
-    if (this._data.filterDate) {
-      const d = this._data.filterDate;
-      tasks = tasks.filter(t => t.dueDate === d || t.createdAt?.startsWith(d) || t.completedAt?.startsWith(d));
+    let tasks = [...this._data.tasks];
+
+    // Page filter
+    if (statusFilter) {
+
+      tasks = tasks.filter(
+        task =>
+          task.status === statusFilter
+      );
     }
-    
+
+    // Search
+    const q =
+      (
+        this._data.searchQuery || ''
+      )
+      .toLowerCase()
+      .trim();
+
+    if (q) {
+
+      tasks = tasks.filter(task =>
+
+        task.title
+          ?.toLowerCase()
+          .includes(q)
+
+        ||
+
+        task.description
+          ?.toLowerCase()
+          .includes(q)
+      );
+    }
+
+    // Priority
+    if (
+      this._data.filterPriority
+    ) {
+
+      tasks = tasks.filter(
+        task =>
+          task.priority ===
+          this._data.filterPriority
+      );
+    }
+
+    // Status
+    if (
+      this._data.filterStatus
+    ) {
+
+      tasks = tasks.filter(
+        task =>
+          task.status ===
+          this._data.filterStatus
+      );
+    }
+
+    // Assignee
+    if (
+      this._data.filterAssignee
+    ) {
+
+      tasks = tasks.filter(task =>
+
+        task.assignees?.some(
+          assignee =>
+
+            String(
+              assignee.id
+            ) ===
+
+            String(
+              this._data.filterAssignee
+            )
+        )
+      );
+    }
+
+    // Date
+    if (
+      this._data.filterDate
+    ) {
+
+      const d =
+        this._data.filterDate;
+
+      tasks = tasks.filter(task =>
+
+        task.dueDate === d ||
+
+        task.createdAt
+          ?.startsWith(d)
+
+        ||
+
+        task.completedAt
+          ?.startsWith(d)
+      );
+    }
+
+    // -------------------------
+    // Smart Date Sorting
+    // -------------------------
+
+    const today = new Date();
+
+    today.setHours(
+      0, 0, 0, 0
+    );
+
+    const tomorrow =
+      new Date(today);
+
+    tomorrow.setDate(
+      today.getDate() + 1
+    );
+
+    // Auto mark overdue as urgent
+    tasks = tasks.map(task => {
+
+      if (!task.dueDate) {
+        return task;
+      }
+
+      const due =
+        new Date(task.dueDate);
+
+      due.setHours(
+        0, 0, 0, 0
+      );
+
+      const overdue =
+
+        due < today &&
+
+        task.status === STATUS.ACTIVE;
+
+      return {
+
+        ...task,
+
+        priority:
+          overdue
+            ? PRIORITY.URGENT
+            : task.priority,
+
+        _overdue: overdue
+      };
+    });
+
+    // Sorting
+    tasks.sort((a, b) => {
+
+      function getRank(task) {
+
+        if (!task.dueDate) {
+          return 999999;
+        }
+
+        const due =
+          new Date(task.dueDate);
+
+        due.setHours(
+          0, 0, 0, 0
+        );
+
+        // overdue
+        if (
+          due < today &&
+          task.status === STATUS.ACTIVE
+        ) {
+          return -1000;
+        }
+
+        // today
+        if (
+          due.getTime() ===
+          today.getTime()
+        ) {
+          return 0;
+        }
+
+        // tomorrow
+        if (
+          due.getTime() ===
+          tomorrow.getTime()
+        ) {
+          return 1;
+        }
+
+        // future
+        return Math.floor(
+          (
+            due - today
+          ) /
+          (
+            1000 *
+            60 *
+            60 *
+            24
+          )
+        );
+      }
+
+      const rankA =
+        getRank(a);
+
+      const rankB =
+        getRank(b);
+
+      // Due order first
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+
+      // Priority order
+      const weights = {
+
+        urgent: 0,
+        high: 1,
+        medium: 2,
+        basic: 3,
+        low: 4,
+      };
+
+      const priorityA =
+        weights[a.priority] ?? 999;
+
+      const priorityB =
+        weights[b.priority] ?? 999;
+
+      if (
+        priorityA !== priorityB
+      ) {
+        return (
+          priorityA -
+          priorityB
+        );
+      }
+
+      // Latest created first
+      return (
+
+        new Date(
+          b.createdAt ||
+          b.created_at
+        )
+
+        -
+
+        new Date(
+          a.createdAt ||
+          a.created_at
+        )
+      );
+    });
+
     return tasks;
   },
 
+  // --------------------------------------------------
+  // Filters
+  // --------------------------------------------------
+
   resetFilters() {
-    this.set('searchQuery', '');
-    this.set('filterPriority', '');
-    this.set('filterStatus', '');
-    this.set('filterAssignee', null);
-    this.set('filterDate', null);
+
+    this.set(
+      'searchQuery',
+      ''
+    );
+
+    this.set(
+      'filterPriority',
+      ''
+    );
+
+    this.set(
+      'filterStatus',
+      ''
+    );
+
+    this.set(
+      'filterAssignee',
+      null
+    );
+
+    this.set(
+      'filterDate',
+      null
+    );
   },
 
+  // --------------------------------------------------
+  // Stats
+  // --------------------------------------------------
+
   stats() {
-    const all = this._data.tasks;
+
+    const all =
+      this._data.tasks;
+
     return {
-      total: all.length,
-      active: all.filter(t => t.status === STATUS.ACTIVE).length,
-      completed: all.filter(t => t.status === STATUS.COMPLETED).length,
-      archived: all.filter(t => t.status === STATUS.ARCHIVED).length,
-      urgent: all.filter(t => t.priority === PRIORITY.URGENT && t.status === STATUS.ACTIVE).length,
+
+      total:
+        all.length,
+
+      active:
+        all.filter(
+          t =>
+            t.status ===
+            STATUS.ACTIVE
+        ).length,
+
+      completed:
+        all.filter(
+          t =>
+            t.status ===
+            STATUS.COMPLETED
+        ).length,
+
+      archived:
+        all.filter(
+          t =>
+            t.status ===
+            STATUS.ARCHIVED
+        ).length,
+
+      urgent:
+        all.filter(
+          t =>
+
+            t.priority ===
+            PRIORITY.URGENT
+
+            &&
+
+            t.status ===
+            STATUS.ACTIVE
+        ).length,
     };
   },
 };

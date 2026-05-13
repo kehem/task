@@ -2,6 +2,7 @@ import { state } from './utils/state.js';
 import { renderSidebar, initSidebarEvents, updateSidebarVisibility } from './components/sidebar.js';
 import { renderNavbar, initNavbarEvents } from './components/navbar.js';
 import { renderDashboard } from './pages/dashboard.js';
+import { renderEmployees } from './pages/employees.js';
 import { renderTasksPage } from './pages/tasks.js';
 import { renderSettings } from './pages/settings.js';
 import { openTaskModal } from './components/modal.js';
@@ -216,14 +217,15 @@ function renderCurrentPage() {
         result.init?.();
       }
     });
-  } else if ( page === 'employee') {
-    import ('./pages/employee.js').them (module => {
-      result = module.renderReportsPage((p) => p ? navigate(p) : renderCurrentPage());
+  } else if (page === 'employees') {
+    import('./pages/employees.js').then(module => {
+      result = module.renderEmployees((p) => p ? navigate(p) : renderCurrentPage());
       if (result) {
         container.innerHTML = result.html;
         result.init?.();
       }
     });
+    return; // prevent the bottom `if (result)` from running before async import resolves
   }
 
   if (result) {

@@ -1,3 +1,4 @@
+// Constants.js
 export const PRIORITY = {
   URGENT: 'urgent',
   HIGH: 'high',
@@ -21,12 +22,13 @@ export const PRIORITY_CONFIG = {
 };
 
 export const NAV_ITEMS = [
-  { id: 'dashboard', icon: 'grid', label: 'Dashboard' },
-  { id: 'tasks',     icon: 'check-square', label: 'Active Tasks' },
-  { id: 'completed', icon: 'check-circle', label: 'Completed' },
-  { id: 'archive',   icon: 'archive', label: 'Archive' },
-  { id: 'reports',   icon: 'chart-bar', label: 'Reports' },
-  { id: 'settings',  icon: 'settings', label: 'Settings' },
+  { id: 'dashboard',  icon: 'grid',         label: 'Dashboard' },
+  { id: 'tasks',      icon: 'check-square', label: 'Active Tasks' },
+  { id: 'completed',  icon: 'check-circle', label: 'Completed' },
+  { id: 'archive',    icon: 'archive',       label: 'Archive' },
+  { id: 'employees',  icon: 'human-head',   label: 'Employees' },  // ← ADD THIS
+  { id: 'reports',    icon: 'chart-bar',     label: 'Reports' },
+  { id: 'settings',   icon: 'settings',      label: 'Settings' },
 ];
 
 // Google Identity Services Client ID (replace with yours)

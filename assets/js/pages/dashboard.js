@@ -1,3 +1,4 @@
+// dashboard.js 
 import { state } from '../utils/state.js';
 import { openTaskDetail } from '../components/modal.js';
 import { STATUS, PRIORITY_CONFIG } from '../utils/constants.js';
